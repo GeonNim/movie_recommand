@@ -1,0 +1,40 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Set up Conda
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          python-version: 3.12
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: myenv
+
+      # Install Python dependencies via Conda (environment.yml handles this)
+      - name: Install additional Python dependencies
+        run: |
+          conda activate myenv
+
+      - run: pm2 restart BackendAPI
