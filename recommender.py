@@ -156,6 +156,68 @@ def item_based_recommendation(item_id):
 # 이 영화와 비슷한 취향을 가진 다른 사용자들이 어떤 영화를 높게 평가했는지를 분석하여, 그 영화들을 추천.
 # 만약 영화 ID 1을 좋아하는 다른 사용자들이 영화 ID 10과 영화 ID 15에 대해서도 높은 평점을 준 경우, 해당 영화들이 추천 목록에 포함될 가능성이 높음.
 
+# — calculate_user_based
+def calculate_user_based(user_items, items):
+  loaded_model = pickle.load(open(saved_model_fname, 'rb'))
+
+
+  # userid=0 : 이 파라미터는 추천을 받을 사용자 ID. userid=0은 현재 추천을 요청하는 사용자가 "가상의 사용자"임을 나타낸다.
+  # userid가 0인 경우, 사용자의 정보가 새롭게 주어졌을 때, 그 사용자의 특성을 다시 계산
+  # 사용자가 평가한 데이터를 기반으로 해당 사용자를 모델에 추가하는 방식으로 동작
+  
+
+  # user_items : 사용자가 평가한 아이템 정보를 포함하는 희소 행렬
+  # user_items 행렬에서 사용자가 평가한 아이템의 위치에 해당하는 데이터. 예를 들어, 사용자가 영화 1과 영화 5에 평점을 부여했을 경우, 해당 위치에 사용자의 평점이 기록된 행렬이 전달
+
+
+  # recalculate_user=True : 사용자의 정보가 새롭게 주어졌을 때, 그 사용자의 특성을 다시 계산할지를 결정
+  # 새로운 사용자나 현재까지 모델에 포함되지 않은 사용자에게 추천을 제공하기 위해 사용자의 특징 벡터를 새롭게 계산
+  # 이 설정은 사용자의 기존 데이터를 학습한 모델에 반영하는 것이 아니라, 주어진 평가 정보(user_items)를 사용하여 그 사용자의 잠재적 특성을 즉시 추정하는 방식
+  # 새로 추가된 사용자의 평가 데이터를 기반으로 모델이 해당 사용자의 잠재적 선호도를 추정하고, 이에 기반하여 추천을 생성
+
+
+  # N=10 : 추천할 아이템의 개수. 여기서는 10개의 아이템을 추천
+  recs = loaded_model.recommend(userid=0, user_items=user_items, recalculate_user=True, N=3)
+  return [str(items[r]) for r in recs[0]] # 추천 결과를 아이템 아이디에서 아이템 이름으로 변환하여 반환
+
+# —- build_matrix
+def build_matrix_input(input_rating_dict, items):
+  model = pickle.load(open(saved_model_fname, 'rb'))
+
+
+  item_ids = {r: i for i, r in items.items()} # item_ids : 아이템 ID를 인덱스로 변환하는 딕셔너리
+  filtered_ratings = {s: input_rating_dict[s] for s in input_rating_dict if s in item_ids} # input_rating_dict에서 item_ids에 있는 아이템만 필터링
+
+
+  # 필터링 후 데이터 생성
+  mapped_idx = [item_ids[s] for s in filtered_ratings.keys()] # item_ids 딕셔너리를 사용하여 item_id를 인덱스로 변환
+  data = [weight * float(x) for x in input_rating_dict.values()] # 가중치를 곱하여 데이터 생성
+  # rows = [0 for _ in mapped_idx]
+  rows = [0] * len(mapped_idx)  # rows는 항상 0으로 고정된 길이로 생성 이유는 사용자가 1명이기 때문에
+  shape = (1, model.item_factors.shape[0])
+
+
+  return coo_matrix((data, (rows, mapped_idx)), shape=shape).tocsr()
+
+# — main 함수
+def user_based_recommendation(input_rating_dict):
+
+  input_rating_dict = {int(k): v for k, v in input_rating_dict.items()} # input_rating_dict의 키와 값을 정수로 변환 : {"1": 3.5}와 같은 형식으로 전달 받았을 경우, {"1": 3.5}를 {1: 3.5}로 변환
+
+  rating_df = pd.read_csv(data_fname)
+  rating_df["userId"] = rating_df["userId"].astype("category")
+  rating_df["movieId"] = rating_df["movieId"].astype("category")
+  movie_df = pd.read_csv(item_fname)
+
+  items = dict(enumerate(rating_df["movieId"].cat.categories))
+  input_matrix = build_matrix_input(input_rating_dict, items)
+  result = calculate_user_based(input_matrix, items)
+  result = [int(x) for x in result]
+  result_items = movie_df[movie_df["movieId"].isin(result)].to_dict("records")
+  return result_items
+
+
+
 
 
 if __name__ == "__main__":
@@ -165,6 +227,13 @@ if __name__ == "__main__":
         item_id = sys.argv[2]
         # item-based 추천 시스템 실행
         print(json.dumps(item_based_recommendation(item_id)))
+
+    elif command == "user-based":
+       input_data = sys.stdin.read()
+       input_rating_dict = json.loads(input_data)
+       result_items = user_based_recommendation(input_rating_dict)
+       print(json.dumps(result_items))
+ 
     else:
       print("Error: Invalid command error") 
       sys.exit(1)
@@ -172,3 +241,12 @@ if __name__ == "__main__":
 
 
     # model_train() # 데이터를 학습하여 모델을 생성하는 함수 호출. 처음 한번 실행 후 주석 처리. 이후 데이터가 추가됐을 때 주기적으로 실행
+
+    # input_rating_dict = {
+    #   "1": 4,
+    #   "2": 3.5
+    # }
+
+
+    # result_itmes = user_based_recommendation(input_rating_dict)
+    # print(result_itmes)
