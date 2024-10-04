@@ -1,45 +1,61 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+
 name: Node.js CI
+
 
 on:
   push:
     branches: ['main']
 
+
 jobs:
   build:
     runs-on: self-hosted
+
 
     strategy:
       matrix:
         node-version: [18.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
+
     steps:
       - uses: actions/checkout@v4
-
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-
       - run: npm ci
 
-      # Set up Python environment
-      - name: Set up Python 3.12.6
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11.x'
-          
-      # Create and activate Python virtual environment
-      - name: Set up Python virtual environment
+
+      # Install Miniconda
+      - name: Install Miniconda
         run: |
-          python -m venv venv
-          source venv/bin/activate
+          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+          bash miniconda.sh -b -u -p $HOME/miniconda
+          eval "$($HOME/miniconda/bin/conda shell.bash hook)"
+          conda init
+          conda config --set always_yes yes --set changeps1 no
+          conda update -q conda
+
+
+      # Create and activate Conda environment
+      - name: Set up Conda environment
+        run: |
+          eval "$($HOME/miniconda/bin/conda shell.bash hook)"
+          conda create -n myenv python=3.11
+          conda activate myenv
+
 
       # Install Python dependencies (if you have a requirements.txt file)
       - name: Install Python dependencies
         run: |
-          source venv/bin/activate
+          eval "$($HOME/miniconda/bin/conda shell.bash hook)"
+          conda activate myenv
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
 
       - run: pm2 restart BackendAPI

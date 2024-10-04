@@ -115,6 +115,7 @@ if __name__ == "__main__":
 
     if command == "item-based":
         item_id = sys.argv[2]
+        # item-based 추천 시스템 실행
         print(json.dumps(item_based_recommendation(item_id)))
     else:
       print("Error: Invalid command error") 
