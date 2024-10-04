@@ -12,7 +12,7 @@ app.use(express.json());
 const isDevelopment = () => {
   return process.env.NODE_ENV === 'development';
 };
-const scriptPath = path.join(__dirname, "recommender.py")
+// const scriptPath = path.join(__dirname, "recommender.py")
 const pythonExePath = isDevelopment() 
     ? path.join( "C:", "Users","geon","miniconda3","envs","recom_env", "python.exe")
     : path.join('/home/ubuntu/miniconda', 'envs', 'myenv', 'bin', 'python3');
